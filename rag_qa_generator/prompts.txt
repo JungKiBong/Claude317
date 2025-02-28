@@ -1,0 +1,62 @@
+너는 파이썬 프로그래밍 및 머신러닝과 llm rag 전문가야. 나를 도와 LLM RAG를 검증 하기 위한 Q&A 데이터 셋을 주어진 cold start Q&A와 테이블 구조 및 연관 관계를 기반으로 자동으로 Q&A 데이터셋과 관련 된 SQL을 생성 해 주는 프로그램을 만들고 싶어 이해했니? 모델은 ollama api나 허깅페이스 로컬모델을 선택적으로 사용하고 싶어.
+
+위 코드를 기능별로 여러개의 파일로 나눌 수 있겠니?
+
+작성한 프로그램을 분석해서 보완해야 될 부분이 있는지 검토하여 더 나은 코드로 만들어 주세요. Streamlit이나 기타 솔루션으로 사용자 화면도 추가 되면 좋겠습니다
+
+좋아요. 지금까지 나를위해 작성해준 코드에 오류가 없는지 검토하여 더 나은 코드로 만들어주세요
+
+좋아 전체 ㅍ로젝트 파일 구조를 정리해줄래?
+
+좋아 이 프로젝트를 소개하는 MD 파일을 만들어주세요
+
+
+최대 응답 길이를 넘지 않도록 파일 하나씩 응답하고 기다려 주세요. continue
+
+
+
+rag_qa_generator/                        # 프로젝트 루트 디렉토리
+│
+├── run.py                               # 메인 실행 스크립트 (CLI/GUI 모드 모두 지원)
+├── main.py                              # CLI 모드 메인 실행 파일
+├── streamlit_app.py                     # Streamlit GUI 인터페이스
+├── setup.py                             # 패키지 설치 스크립트
+├── requirements.txt                     # 의존성 패키지 목록
+├── README.md                            # 프로젝트 설명서
+├── .gitignore                           # Git 무시 파일 목록
+│
+├── config.py                            # 설정 관련 클래스
+│
+├── models/                              # 모델 관련 모듈
+│   ├── init.py                      # 모델 패키지 초기화 (모델 팩토리 함수 포함)
+│   ├── base_model.py                    # 기본 모델 인터페이스
+│   ├── ollama_model.py                  # Ollama 모델 구현
+│   └── huggingface_model.py             # HuggingFace 모델 구현
+│
+├── data/                                # 데이터 처리 관련 모듈
+│   ├── init.py                      # 데이터 패키지 초기화
+│   ├── schema_loader.py                 # 데이터베이스 스키마 로더
+│   └── qa_loader.py                     # Q&A 데이터 로더
+│
+├── generator/                           # 생성 관련 모듈
+│   ├── init.py                      # 생성기 패키지 초기화
+│   ├── prompt_builder.py                # 프롬프트 생성 유틸리티
+│   ├── qa_generator.py                  # Q&A 생성기 클래스
+│   └── sql_validator.py                 # SQL 검증 유틸리티
+│
+├── utils/                               # 유틸리티 모듈
+│   ├── init.py                      # 유틸리티 패키지 초기화
+│   └── logger.py                        # 로깅 유틸리티
+│
+└── examples/                            # 예제 데이터
+    ├── schemas/                         # 예제 스키마 파일
+    │   ├── ecommerce_schema.json        # 이커머스 데이터베이스 스키마 예제
+    │   └── hospital_schema.json         # 병원 데이터베이스 스키마 예제
+    │
+    └── qa/                              # 예제 Q&A 파일
+        ├── ecommerce_qa.json            # 이커머스 관련 초기 Q&A 예제
+        └── hospital_qa.json             # 병원 관련 초기 Q&A 예제
+파일 하나씩 작성해서 다운 받을 수 있게 해주세요. 개선 가능한 부분이 있다면 더나은 코드로 만들어주세요. 오류가 있다면 수정해 주세요.
+
+
+

@@ -1,0 +1,38 @@
+[
+    {
+      "difficulty": "easy",
+      "question": "모든 의사의 이름과 전문 분야를 조회하세요.",
+      "sql": "SELECT first_name, last_name, specialty FROM doctors;",
+      "answer": "의사 테이블에서 모든 의사의 이름(성과 이름)과 전문 분야를 조회한 결과를 반환합니다. 이 쿼리는 doctors 테이블의 모든 행에서 first_name, last_name, specialty 열만 선택합니다."
+    },
+    {
+      "difficulty": "easy",
+      "question": "특정 날짜(2023-05-15) 이후에 예약된 모든 진료 예약을 조회하세요.",
+      "sql": "SELECT * FROM appointments WHERE appointment_date > '2023-05-15';",
+      "answer": "진료 예약 테이블에서 2023년 5월 15일 이후에 예약된 모든 진료 예약 정보를 반환합니다. 이 쿼리는 WHERE 절을 사용하여 appointment_date가 '2023-05-15'보다 큰(이후인) 예약만 필터링합니다."
+    },
+    {
+      "difficulty": "medium",
+      "question": "각 의사별로 담당한 환자 수와 진료 예약 수를 조회하세요.",
+      "sql": "SELECT d.doctor_id, d.first_name, d.last_name, COUNT(DISTINCT a.patient_id) AS patient_count, COUNT(a.appointment_id) AS appointment_count FROM doctors d LEFT JOIN appointments a ON d.doctor_id = a.doctor_id GROUP BY d.doctor_id, d.first_name, d.last_name ORDER BY appointment_count DESC;",
+      "answer": "이 쿼리는 각 의사별로 담당한 고유 환자 수와 총 진료 예약 수를 계산합니다. doctors와 appointments 테이블을 LEFT JOIN하여 모든 의사가 포함되도록 하고, 의사별로 그룹화하여 고유한 환자 수(COUNT DISTINCT)와 총 예약 수(COUNT)를 계산합니다. 결과는 예약 수를 기준으로 내림차순 정렬됩니다."
+    },
+    {
+        "difficulty": "medium",
+        "question": "특정 부서(Cardiology)에 속한 의사들이 진행한 모든 진료 기록을 조회하세요.",
+        "sql": "SELECT mr.* FROM medical_records mr JOIN doctors d ON mr.doctor_id = d.doctor_id JOIN departments dept ON d.department_id = dept.department_id WHERE dept.name = 'Cardiology' ORDER BY mr.visit_date DESC;",
+        "answer": "심장학과(Cardiology) 부서에 속한 의사들이 진행한 모든 진료 기록을 조회합니다. medical_records, doctors, departments 테이블을 조인하여 부서 이름이 'Cardiology'인 의사들의 진료 기록만 필터링합니다. 결과는 방문 날짜(visit_date)를 기준으로 내림차순 정렬되어 가장 최근 진료 기록부터 표시됩니다."
+      },
+      {
+        "difficulty": "hard",
+        "question": "각 환자별로 총 진료비, 보험 적용 금액, 본인 부담금과 함께 전체 평균 대비 본인 부담률을 계산하세요.",
+        "sql": "WITH patient_totals AS (\n  SELECT\n    p.patient_id,\n    p.first_name,\n    p.last_name,\n    SUM(b.amount) AS total_bills,\n    SUM(b.insurance_covered) AS total_insurance,\n    SUM(b.patient_responsibility) AS total_responsibility,\n    SUM(b.patient_responsibility) / SUM(b.amount) * 100 AS responsibility_pct\n  FROM patients p\n  JOIN billing b ON p.patient_id = b.patient_id\n  GROUP BY p.patient_id, p.first_name, p.last_name\n),\navg_stats AS (\n  SELECT AVG(responsibility_pct) AS avg_responsibility_pct\n  FROM patient_totals\n)\nSELECT\n  pt.*,\n  avg.avg_responsibility_pct,\n  pt.responsibility_pct - avg.avg_responsibility_pct AS pct_diff_from_avg\nFROM patient_totals pt, avg_stats avg\nORDER BY pt.total_bills DESC;",
+        "answer": "이 쿼리는 각 환자별로 의료비 지출 상황을 종합적으로 분석합니다. 먼저 CTE(Common Table Expression)를 사용해 각 환자별 총 진료비, 보험 적용 금액, 본인 부담금을 계산하고 본인 부담률(%)을 구합니다. 그리고 두 번째 CTE에서 모든 환자의 평균 본인 부담률을 계산합니다. 마지막으로 각 환자의 본인 부담률과 평균 본인 부담률의 차이를 계산하여 환자별 부담률이 평균보다 높은지 낮은지 비교합니다. 결과는 총 진료비 기준으로 내림차순 정렬됩니다."
+      },
+      {
+        "difficulty": "hard",
+        "question": "월별로 각 부서의 예약 수와 진료 완료율을 조회하고, 부서별 성과 추이를 분석하세요.",
+        "sql": "WITH monthly_stats AS (\n  SELECT\n    d.department_id,\n    dept.name AS department_name,\n    YEAR(a.appointment_date) AS year,\n    MONTH(a.appointment_date) AS month,\n    COUNT(a.appointment_id) AS total_appointments,\n    SUM(CASE WHEN a.status = 'Completed' THEN 1 ELSE 0 END) AS completed_appointments\n  FROM appointments a\n  JOIN doctors d ON a.doctor_id = d.doctor_id\n  JOIN departments dept ON d.department_id = dept.department_id\n  GROUP BY d.department_id, dept.name, YEAR(a.appointment_date), MONTH(a.appointment_date)\n)\nSELECT\n  ms.department_name,\n  ms.year,\n  ms.month,\n  ms.total_appointments,\n  ms.completed_appointments,\n  ROUND(ms.completed_appointments / ms.total_appointments * 100, 2) AS completion_rate,\n  LAG(ms.total_appointments) OVER (PARTITION BY ms.department_id ORDER BY ms.year, ms.month) AS prev_month_appointments,\n  CASE\n    WHEN LAG(ms.total_appointments) OVER (PARTITION BY ms.department_id ORDER BY ms.year, ms.month) IS NULL THEN NULL\n    ELSE ROUND((ms.total_appointments - LAG(ms.total_appointments) OVER (PARTITION BY ms.department_id ORDER BY ms.year, ms.month)) / LAG(ms.total_appointments) OVER (PARTITION BY ms.department_id ORDER BY ms.year, ms.month) * 100, 2)\n  END AS appointment_growth_pct\nFROM monthly_stats ms\nORDER BY ms.department_name, ms.year, ms.month;",
+        "answer": "이 쿼리는 각 부서별로 월간 예약 현황과 성과 지표를 분석합니다. 먼저 CTE를 사용하여 각 부서의 월별 총 예약 수와 완료된 예약 수를 계산합니다. 그런 다음 각 월별 완료율(%)을 계산하고, 윈도우 함수 LAG를 사용하여 이전 달 대비 예약 증가율을 계산합니다. 이 분석을 통해 시간에 따른 각 부서의 예약 추이와 서비스 완료율 변화를 확인할 수 있습니다. 결과는 부서명, 년, 월 순으로 정렬되어 부서별 시간에 따른 추이를 쉽게 볼 수 있습니다."
+      }
+    ]

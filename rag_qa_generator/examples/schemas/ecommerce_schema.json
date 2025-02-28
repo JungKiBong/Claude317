@@ -1,0 +1,22 @@
+{
+    "database_name": "Ecommerce",
+    "tables": [
+      {
+        "name": "customers",
+        "columns": [
+          {"name": "customer_id", "type": "INT", "primary_key": true, "not_null": true},
+          {"name": "name", "type": "VARCHAR(100)", "not_null": true},
+          {"name": "email", "type": "VARCHAR(100)", "not_null": true}
+        ]
+      },
+      {
+        "name": "orders",
+        "columns": [
+          {"name": "order_id", "type": "INT", "primary_key": true, "not_null": true},
+          {"name": "customer_id", "type": "INT", "not_null": true, "references": {"table": "customers", "column": "customer_id"}},
+          {"name": "order_date", "type": "DATE", "not_null": true},
+          {"name": "total_amount", "type": "DECIMAL(10,2)", "not_null": true}
+        ]
+      }
+    ]
+  }
