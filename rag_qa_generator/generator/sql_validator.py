@@ -1,10 +1,14 @@
 import re
 import json
+import logging
 from typing import Dict, List, Any, Optional, Tuple, Set
 import sqlparse
 from pathlib import Path
 
-from ..data.schema_loader import SchemaLoader
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from data.schema_loader import SchemaLoader
 
 class SQLValidator:
     """SQL 쿼리 유효성 검증 클래스"""
@@ -19,69 +23,157 @@ class SQLValidator:
         self.columns = {}
         self.aliases = {}
         
+        # 로거 초기화 추가
+        self.logger = logging.getLogger(__name__)
+        
         # 스키마 정보 초기화
         self._initialize_schema_info()
     
     def _initialize_schema_info(self) -> None:
         """스키마 정보 초기화 및 캐싱"""
         # 테이블 정보 가져오기
-        self.tables = self.schema_loader.get_tables()
-        
+        try:
+            self.tables = self.schema_loader.get_tables()
+        except AttributeError:
+            # get_tables 메서드가 없는 경우 대체 로직
+            self.logger.warning("get_tables 메서드를 찾을 수 없습니다. 스키마에서 직접 테이블 정보를 추출합니다.")
+            schema = self.schema_loader.load_schema()
+            self.tables = {}
+            
+            if isinstance(schema, dict) and 'tables' in schema:
+                for table in schema['tables']:
+                    table_name = table.get('name')
+                    if table_name:
+                        self.tables[table_name] = table
+            elif isinstance(schema, str):
+                # 문자열 형식의 스키마에서 테이블 추출 시도
+                table_pattern = r'CREATE\s+TABLE\s+(?:\w+\.)?(\w+)'
+                table_names = re.findall(table_pattern, schema, re.IGNORECASE)
+                
+                for table_name in table_names:
+                    self.tables[table_name] = {"name": table_name, "columns": []}
+                    
+                    # 컬럼 추출 시도
+                    column_pattern = r'CREATE\s+TABLE\s+(?:\w+\.)?{0}\s*\((.*?)\)'.format(re.escape(table_name))
+                    column_matches = re.search(column_pattern, schema, re.IGNORECASE | re.DOTALL)
+                    
+                    if column_matches:
+                        column_text = column_matches.group(1)
+                        column_defs = column_text.split(',')
+                        for col_def in column_defs:
+                            col_def = col_def.strip()
+                            if col_def:
+                                col_name_match = re.match(r'(\w+)', col_def)
+                                if col_name_match:
+                                    col_name = col_name_match.group(1)
+                                    self.tables[table_name].setdefault("columns", []).append(
+                                        {"name": col_name}
+                                    )
+                            
         # 각 테이블의 컬럼 정보 캐싱
         self.columns = {}
         for table_name, table_info in self.tables.items():
             self.columns[table_name] = {}
             for column in table_info.get("columns", []):
-                column_name = column["name"]
-                self.columns[table_name][column_name] = column
+                if isinstance(column, dict) and "name" in column:
+                    column_name = column["name"]
+                    self.columns[table_name][column_name] = column
+                elif isinstance(column, str):
+                    self.columns[table_name][column] = {"name": column}
     
     def validate_sql(self, sql: str) -> Dict[str, Any]:
-        """SQL 쿼리 유효성 검증
+        """SQL 쿼리 유효성 검증 - 로깅 추가
         
         Args:
             sql: 검증할 SQL 쿼리
             
         Returns:
-            검증 결과 (유효성, 오류 메시지 등)
+            유효성 검증 결과
         """
-        # 초기 결과 설정
+        # 로깅 레벨 확인
+        is_debug = self.logger.getEffectiveLevel() <= logging.DEBUG
+        
+        if is_debug:
+            self.logger.debug(f"SQL 검증 시작: {sql}")
+        
+        # 기본 결과
         result = {
-            "is_valid": True,
-            "errors": [],
-            "warnings": [],
-            "corrected_sql": None
+            "is_valid": False,
+            "errors": []
         }
         
-        # 빈 쿼리 확인
-        if not sql or sql.strip() == "":
-            result["is_valid"] = False
+        # SQL이 비어있는 경우
+        if not sql or not sql.strip():
             result["errors"].append("SQL 쿼리가 비어 있습니다.")
             return result
         
-        try:
-            # 구문 분석
-            parsed = sqlparse.parse(sql)
-            if not parsed:
-                result["is_valid"] = False
-                result["errors"].append("SQL 쿼리를 파싱할 수 없습니다.")
-                return result
-            
-            # 분석된 쿼리의 첫 번째 문장 사용
-            stmt = parsed[0]
-            
-            # 테이블 및 컬럼 참조 검증
-            table_errors = self._validate_tables(stmt, sql)
-            if table_errors:
-                result["is_valid"] = False
-                result["errors"].extend(table_errors)
-            
-            # 추가 검증 (필요에 따라 확장)
-            
-        except Exception as e:
-            result["is_valid"] = False
-            result["errors"].append(f"검증 중 오류 발생: {str(e)}")
+        # 기본 문법 확인
+        if not sql.upper().startswith("SELECT"):
+            result["errors"].append("SQL 쿼리는 SELECT로 시작해야 합니다.")
         
-        return result
+        if "FROM" not in sql.upper():
+            result["errors"].append("FROM 절이 필요합니다.")
+        
+        # 테이블 및 컬럼 유효성 검사
+        tables_in_schema = []
+        try:
+            # 스키마에서 테이블 목록 추출
+            tables_in_schema = list(self.tables.keys())
+            
+            if is_debug:
+                self.logger.debug(f"스키마에서 추출한 테이블: {tables_in_schema}")
+            
+            # SQL에서 사용된 테이블 추출
+            used_tables = []
+            from_match = re.findall(r'FROM\s+([a-zA-Z0-9_]+)', sql, re.IGNORECASE)
+            join_match = re.findall(r'JOIN\s+([a-zA-Z0-9_]+)', sql, re.IGNORECASE)
+            
+            if from_match:
+                used_tables.extend(from_match)
+            if join_match:
+                used_tables.extend(join_match)
+            
+            if is_debug:
+                self.logger.debug(f"SQL에서 사용된 테이블: {used_tables}")
+            
+            # 테이블 존재 여부 확인
+            invalid_tables = [table for table in used_tables if table not in tables_in_schema]
+            if invalid_tables:
+                tables_str = ", ".join(invalid_tables)
+                result["errors"].append(f"테이블이 스키마에 존재하지 않습니다: {tables_str}")
+                
+                # 테이블명 제안
+                if tables_in_schema:
+                    available_tables = ", ".join(tables_in_schema[:5])
+                    result["errors"].append(f"사용 가능한 테이블: {available_tables}{' 외 더 많은 테이블' if len(tables_in_schema) > 5 else ''}")
+                    
+                    # SQL 수정 시도
+                    corrected_sql = sql
+                    for bad_table in invalid_tables:
+                        if tables_in_schema:
+                            # 가장 유사한 테이블명 찾기
+                            import difflib
+                            similar = difflib.get_close_matches(bad_table, tables_in_schema, n=1)
+                            if similar:
+                                replacement = similar[0]
+                                corrected_sql = re.sub(r'\b{0}\b'.format(re.escape(bad_table)), replacement, corrected_sql, flags=re.IGNORECASE)
+                                
+                                if is_debug:
+                                    self.logger.debug(f"테이블 수정: {bad_table} -> {replacement}")
+                    
+                    if corrected_sql != sql:
+                        result["corrected_sql"] = corrected_sql
+        
+        except Exception as e:
+            if is_debug:
+                self.logger.debug(f"스키마 확인 중 오류: {str(e)}")
+            result["errors"].append(f"스키마 확인 오류: {str(e)}")
+        
+        # 오류가 없으면 유효한 것으로 간주
+        if not result["errors"]:
+            result["is_valid"] = True
+        
+        return result 
     
     def _validate_tables(self, stmt, sql: str) -> List[str]:
         """SQL 쿼리에서 테이블 참조 유효성 검증
@@ -256,11 +348,10 @@ class SQLValidator:
         if not self.tables:
             return None
             
-        # 간단한 유사도 측정 (레벤슈타인 거리 등을 사용할 수 있음)
-        # 여기서는 간단한 접두사 매칭만 구현
-        table_name_lower = table_name.lower()
-        for real_table in self.tables.keys():
-            if real_table.lower().startswith(table_name_lower) or table_name_lower.startswith(real_table.lower()):
-                return real_table
+        # difflib 라이브러리를 사용하여 가장 유사한 테이블 이름 찾기
+        import difflib
+        similar_tables = difflib.get_close_matches(table_name, list(self.tables.keys()), n=1)
+        if similar_tables:
+            return similar_tables[0]
                 
         return None

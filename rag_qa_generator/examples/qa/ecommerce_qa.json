@@ -1,32 +1,92 @@
 [
-    {
-      "difficulty": "easy",
-      "question": "모든 고객의 이름과 이메일 주소를 조회하세요.",
-      "sql": "SELECT name, email FROM customers;",
-      "answer": "고객 테이블에서 모든 고객의 이름과 이메일 주소를 조회한 결과를 반환합니다. 이 쿼리는 고객 테이블의 모든 행에서 name과 email 열만 선택합니다."
-    },
-    {
-      "difficulty": "easy",
-      "question": "가격이 50달러 이상인 모든 제품의 이름과 가격을 조회하세요.",
-      "sql": "SELECT name, price FROM products WHERE price >= 50;",
-      "answer": "제품 테이블에서 가격이 50달러 이상인 모든 제품의 이름과 가격을 반환합니다. 이 쿼리는 WHERE 절을 사용하여 가격이 50 이상인 제품만 필터링합니다."
-    },
-    {
-      "difficulty": "medium",
-      "question": "각 카테고리별 제품 수와 평균 가격을 조회하세요.",
-      "sql": "SELECT c.name AS category_name, COUNT(p.product_id) AS product_count, AVG(p.price) AS average_price FROM categories c JOIN products p ON c.category_id = p.category_id GROUP BY c.category_id, c.name;",
-      "answer": "이 쿼리는 각 카테고리별 제품 수와 평균 가격을 계산합니다. categories와 products 테이블을 조인하고, 카테고리별로 그룹화하여 제품 수(COUNT)와 평균 가격(AVG)을 계산한 결과를 반환합니다."
-    },
-    {
-      "difficulty": "medium",
-      "question": "2023년에 가장 많은 주문을 한 상위 5명의 고객 이름과 총 주문 금액을 조회하세요.",
-      "sql": "SELECT c.name, SUM(o.total_amount) AS total_spent FROM customers c JOIN orders o ON c.customer_id = o.customer_id WHERE YEAR(o.order_date) = 2023 GROUP BY c.customer_id, c.name ORDER BY total_spent DESC LIMIT 5;",
-      "answer": "2023년에 가장 많은 금액을 지출한 상위 5명의 고객 이름과 총 지출액을 보여줍니다. customers와 orders 테이블을 조인하고, 2023년 주문만 필터링한 후, 고객별로 그룹화하여 총 주문 금액을 계산합니다. 그 결과를 총 지출액 기준으로 내림차순 정렬하고 상위 5개만 반환합니다."
-    },
-    {
-      "difficulty": "hard",
-      "question": "각 제품 카테고리별로 월별 매출 추이를 조회하고, 전월 대비 매출 증감률도 함께 표시하세요.",
-      "sql": "WITH monthly_sales AS (\n  SELECT\n    c.category_id,\n    c.name AS category_name,\n    YEAR(o.order_date) AS year,\n    MONTH(o.order_date) AS month,\n    SUM(oi.quantity * oi.unit_price) AS sales_amount\n  FROM categories c\n  JOIN products p ON c.category_id = p.category_id\n  JOIN order_items oi ON p.product_id = oi.product_id\n  JOIN orders o ON oi.order_id = o.order_id\n  GROUP BY c.category_id, c.name, YEAR(o.order_date), MONTH(o.order_date)\n)\nSELECT\n  m1.category_name,\n  m1.year,\n  m1.month,\n  m1.sales_amount,\n  LAG(m1.sales_amount) OVER (PARTITION BY m1.category_id ORDER BY m1.year, m1.month) AS prev_month_sales,\n  CASE\n    WHEN LAG(m1.sales_amount) OVER (PARTITION BY m1.category_id ORDER BY m1.year, m1.month) IS NULL THEN NULL\n    WHEN LAG(m1.sales_amount) OVER (PARTITION BY m1.category_id ORDER BY m1.year, m1.month) = 0 THEN NULL\n    ELSE (m1.sales_amount - LAG(m1.sales_amount) OVER (PARTITION BY m1.category_id ORDER BY m1.year, m1.month)) / LAG(m1.sales_amount) OVER (PARTITION BY m1.category_id ORDER BY m1.year, m1.month) * 100\n  END AS growth_rate\nFROM monthly_sales m1\nORDER BY m1.category_name, m1.year, m1.month;",
-      "answer": "이 쿼리는 각 제품 카테고리별로 월별 매출 추이와 전월 대비 증감률을 보여줍니다. 먼저 CTE(Common Table Expression)를 사용하여 각 카테고리의 월별 매출을 계산합니다. 그런 다음 윈도우 함수 LAG를 사용하여 이전 달의 매출을 가져오고, 현재 달과 이전 달의 매출 차이를 이전 달 매출로 나누어 증감률을 백분율로 계산합니다. 결과는 카테고리, 년, 월 순으로 정렬되어 제공됩니다."
-    }
-  ]
+  {
+    "difficulty": "easy",
+    "question": "모든 고객의 이름과 이메일 주소를 조회하세요.",
+    "sql": "SELECT name, email FROM customers;",
+    "answer": "고객 테이블에서 모든 고객의 이름과 이메일 주소를 조회한 결과를 반환합니다. 이 쿼리는 고객 테이블의 모든 행에서 name과 email 열만 선택합니다."
+  },
+  {
+    "difficulty": "easy",
+    "question": "가격이 50달러 이상인 모든 제품의 이름과 가격을 조회하세요.",
+    "sql": "SELECT name, price FROM products WHERE price >= 50;",
+    "answer": "제품 테이블에서 가격이 50달러 이상인 모든 제품의 이름과 가격을 반환합니다. 이 쿼리는 WHERE 절을 사용하여 가격이 50 이상인 제품만 필터링합니다."
+  },
+  {
+    "difficulty": "easy",
+    "question": "최근에 가입한 고객 10명의 이름과 가입일을 조회하세요.",
+    "sql": "SELECT name, registration_date FROM customers ORDER BY registration_date DESC LIMIT 10;",
+    "answer": "고객 테이블에서 가장 최근에 가입한 10명의 고객 이름과 가입일을 보여줍니다. 결과는 가입일을 기준으로 내림차순 정렬되어, 가장 최근에 가입한 고객이 먼저 표시됩니다."
+  },
+  {
+    "difficulty": "easy",
+    "question": "주문 상태별 주문 수를 확인하세요.",
+    "sql": "SELECT order_status, COUNT(*) AS order_count FROM orders GROUP BY order_status;",
+    "answer": "주문 테이블에서 각 주문 상태(배송 중, 배송 완료, 취소 등)별 주문 수를 계산합니다. GROUP BY 절을 사용하여 주문 상태별로 그룹화하고, COUNT 함수로 각 상태의 주문 수를 집계합니다."
+  },
+  {
+    "difficulty": "easy",
+    "question": "재고가 10개 미만인 제품 목록을 조회하세요.",
+    "sql": "SELECT product_id, name, stock_quantity FROM products WHERE stock_quantity < 10;",
+    "answer": "제품 테이블에서 재고 수량이 10개 미만인 모든 제품의 ID, 이름, 재고 수량을 보여줍니다. 이 쿼리는 재고 부족 제품을 식별하는 데 유용하며, 재고 보충이 필요한 제품을 쉽게 확인할 수 있습니다."
+  },
+  {
+    "difficulty": "medium",
+    "question": "각 카테고리별 제품 수와 평균 가격을 조회하세요.",
+    "sql": "SELECT c.name AS category_name, COUNT(p.product_id) AS product_count, AVG(p.price) AS average_price \nFROM categories c \nJOIN products p ON c.category_id = p.category_id \nGROUP BY c.category_id, c.name;",
+    "answer": "이 쿼리는 각 카테고리별 제품 수와 평균 가격을 계산합니다. categories와 products 테이블을 조인하고, 카테고리별로 그룹화하여 제품 수(COUNT)와 평균 가격(AVG)을 계산한 결과를 반환합니다."
+  },
+  {
+    "difficulty": "medium",
+    "question": "2023년에 가장 많은 주문을 한 상위 5명의 고객 이름과 총 주문 금액을 조회하세요.",
+    "sql": "SELECT c.name, SUM(o.total_amount) AS total_spent \nFROM customers c \nJOIN orders o ON c.customer_id = o.customer_id \nWHERE YEAR(o.order_date) = 2023 \nGROUP BY c.customer_id, c.name \nORDER BY total_spent DESC \nLIMIT 5;",
+    "answer": "2023년에 가장 많은 금액을 지출한 상위 5명의 고객 이름과 총 지출액을 보여줍니다. customers와 orders 테이블을 조인하고, 2023년 주문만 필터링한 후, 고객별로 그룹화하여 총 주문 금액을 계산합니다. 그 결과를 총 지출액 기준으로 내림차순 정렬하고 상위 5개만 반환합니다."
+  },
+  {
+    "difficulty": "medium",
+    "question": "각 제품별 평균 평점과 리뷰 수를 조회하세요.",
+    "sql": "SELECT p.name AS product_name, \n       COUNT(r.review_id) AS review_count, \n       AVG(r.rating) AS average_rating\nFROM products p\nLEFT JOIN reviews r ON p.product_id = r.product_id\nGROUP BY p.product_id, p.name\nORDER BY average_rating DESC;",
+    "answer": "이 쿼리는 각 제품의 이름, 리뷰 수, 평균 평점을 보여줍니다. products와 reviews 테이블을 LEFT JOIN하여 리뷰가 없는 제품도 결과에 포함시킵니다. 제품별로 그룹화하여 리뷰 수와 평균 평점을 계산하고, 평균 평점 기준으로 내림차순 정렬합니다."
+  },
+  {
+    "difficulty": "medium",
+    "question": "가장 많이, 가장 적게 팔린 제품은 무엇인가요?",
+    "sql": "WITH product_sales AS (\n    SELECT p.product_id, p.name, SUM(oi.quantity) AS total_sold\n    FROM products p\n    LEFT JOIN order_items oi ON p.product_id = oi.product_id\n    GROUP BY p.product_id, p.name\n)\nSELECT \n    (SELECT name FROM product_sales ORDER BY total_sold DESC LIMIT 1) AS most_sold_product,\n    (SELECT name FROM product_sales WHERE total_sold > 0 ORDER BY total_sold ASC LIMIT 1) AS least_sold_product;",
+    "answer": "이 쿼리는 가장 많이 팔린 제품과 가장 적게 팔린 제품의 이름을 동시에 보여줍니다. Common Table Expression(CTE)를 사용하여 각 제품별 총 판매량을 계산한 후, 서브쿼리를 통해 최대/최소 판매량을 가진 제품을 찾습니다. 판매량이 0인 제품은 '가장 적게 팔린 제품' 계산에서 제외됩니다."
+  },
+  {
+    "difficulty": "medium",
+    "question": "월별 매출액과 주문 수를 조회하세요.",
+    "sql": "SELECT \n    YEAR(order_date) AS year,\n    MONTH(order_date) AS month,\n    COUNT(*) AS order_count,\n    SUM(total_amount) AS monthly_revenue\nFROM orders\nGROUP BY YEAR(order_date), MONTH(order_date)\nORDER BY year, month;",
+    "answer": "이 쿼리는 월별 주문 수와 매출액을 계산합니다. orders 테이블에서 주문 날짜의 연도와 월을 추출하여 그룹화하고, 각 월별 주문 수와 총 매출액을 계산합니다. 결과는 연도와 월 순으로 정렬되어 시간에 따른 매출 추이를 확인할 수 있습니다."
+  },
+  {
+    "difficulty": "hard",
+    "question": "각 제품 카테고리별로 월별 매출 추이를 조회하고, 전월 대비 매출 증감률도 함께 표시하세요.",
+    "sql": "WITH monthly_sales AS (\n  SELECT\n    c.category_id,\n    c.name AS category_name,\n    YEAR(o.order_date) AS year,\n    MONTH(o.order_date) AS month,\n    SUM(oi.quantity * oi.unit_price) AS sales_amount\n  FROM categories c\n  JOIN products p ON c.category_id = p.category_id\n  JOIN order_items oi ON p.product_id = oi.product_id\n  JOIN orders o ON oi.order_id = o.order_id\n  GROUP BY c.category_id, c.name, YEAR(o.order_date), MONTH(o.order_date)\n)\nSELECT\n  m1.category_name,\n  m1.year,\n  m1.month,\n  m1.sales_amount,\n  LAG(m1.sales_amount) OVER (PARTITION BY m1.category_id ORDER BY m1.year, m1.month) AS prev_month_sales,\n  CASE\n    WHEN LAG(m1.sales_amount) OVER (PARTITION BY m1.category_id ORDER BY m1.year, m1.month) IS NULL THEN NULL\n    WHEN LAG(m1.sales_amount) OVER (PARTITION BY m1.category_id ORDER BY m1.year, m1.month) = 0 THEN NULL\n    ELSE (m1.sales_amount - LAG(m1.sales_amount) OVER (PARTITION BY m1.category_id ORDER BY m1.year, m1.month)) / LAG(m1.sales_amount) OVER (PARTITION BY m1.category_id ORDER BY m1.year, m1.month) * 100\n  END AS growth_rate\nFROM monthly_sales m1\nORDER BY m1.category_name, m1.year, m1.month;",
+    "answer": "이 쿼리는 각 제품 카테고리별로 월별 매출 추이와 전월 대비 증감률을 보여줍니다. 먼저 CTE(Common Table Expression)를 사용하여 각 카테고리의 월별 매출을 계산합니다. 그런 다음 윈도우 함수 LAG를 사용하여 이전 달의 매출을 가져오고, 현재 달과 이전 달의 매출 차이를 이전 달 매출로 나누어 증감률을 백분율로 계산합니다. 결과는 카테고리, 년, 월 순으로 정렬되어 제공됩니다."
+  },
+  {
+    "difficulty": "hard",
+    "question": "고객 세그먼트별 구매 패턴을 분석하세요. 총 구매액에 따라 고객을 상위 20%(VIP), 중위 30%(Regular), 하위 50%(Occasional)로 분류하고, 각 세그먼트의 평균 주문 금액과 주문 빈도를 확인하세요.",
+    "sql": "WITH customer_segments AS (\n    SELECT\n        c.customer_id,\n        c.name,\n        COUNT(o.order_id) AS order_count,\n        SUM(o.total_amount) AS total_spent,\n        AVG(o.total_amount) AS avg_order_amount,\n        NTILE(5) OVER (ORDER BY SUM(o.total_amount) DESC) AS segment_quintile\n    FROM customers c\n    JOIN orders o ON c.customer_id = o.customer_id\n    GROUP BY c.customer_id, c.name\n)\nSELECT\n    CASE \n        WHEN segment_quintile = 1 THEN 'VIP (상위 20%)'\n        WHEN segment_quintile IN (2, 3) THEN 'Regular (중위 30%)'\n        ELSE 'Occasional (하위 50%)'\n    END AS customer_segment,\n    COUNT(*) AS customer_count,\n    ROUND(AVG(order_count), 2) AS avg_order_frequency,\n    ROUND(AVG(avg_order_amount), 2) AS avg_order_amount,\n    ROUND(AVG(total_spent), 2) AS avg_total_spent\nFROM customer_segments\nGROUP BY \n    CASE \n        WHEN segment_quintile = 1 THEN 'VIP (상위 20%)'\n        WHEN segment_quintile IN (2, 3) THEN 'Regular (중위 30%)'\n        ELSE 'Occasional (하위 50%)'\n    END\nORDER BY avg_total_spent DESC;",
+    "answer": "이 쿼리는 고객을 구매액에 따라 세 가지 세그먼트(VIP, Regular, Occasional)로 분류하고 각 세그먼트의 구매 패턴을 분석합니다. 먼저 CTE를 사용하여 각 고객의 주문 수, 총 지출액, 평균 주문 금액을 계산하고, NTILE 윈도우 함수를 사용하여 총 지출액 기준으로 5개 분위로 나눕니다. 그런 다음 이 분위를 상위 20%(VIP), 중위 30%(Regular), 하위 50%(Occasional)로 그룹화하고, 각 세그먼트별로 고객 수, 평균 주문 빈도, 평균 주문 금액, 평균 총 지출액을 계산합니다. 이 분석은 마케팅 전략을 세우고 고객 충성도를 이해하는 데 도움이 됩니다."
+  },
+  {
+    "difficulty": "hard",
+    "question": "인기 제품 조합을 찾아보세요. 같은 주문에서 함께 구매되는 빈도가 높은 제품 쌍을 찾아내세요.",
+    "sql": "WITH product_pairs AS (\n    SELECT\n        oi1.product_id AS product_id1,\n        oi2.product_id AS product_id2,\n        COUNT(DISTINCT oi1.order_id) AS co_occurrence\n    FROM order_items oi1\n    JOIN order_items oi2 ON oi1.order_id = oi2.order_id AND oi1.product_id < oi2.product_id\n    GROUP BY oi1.product_id, oi2.product_id\n    HAVING COUNT(DISTINCT oi1.order_id) > 5\n)\nSELECT\n    p1.name AS product1,\n    p2.name AS product2,\n    pp.co_occurrence,\n    ROUND(pp.co_occurrence * 100.0 / (\n        SELECT COUNT(DISTINCT order_id) FROM orders\n    ), 2) AS percentage_of_orders\nFROM product_pairs pp\nJOIN products p1 ON pp.product_id1 = p1.product_id\nJOIN products p2 ON pp.product_id2 = p2.product_id\nORDER BY pp.co_occurrence DESC\nLIMIT 10;",
+    "answer": "이 쿼리는 가장 자주 함께 구매되는 제품 쌍(제품 조합)을 식별합니다. order_items 테이블을 자체 조인하여 같은 주문에서 함께 구매된 제품 쌍을 찾습니다. 각 제품 쌍의 동시 발생 횟수를 계산하고, 최소 5회 이상 함께 구매된 쌍만 선택합니다. 또한 전체 주문 중 해당 제품 쌍이 함께 구매된 비율을 백분율로 계산합니다. 결과는 동시 발생 빈도를 기준으로 내림차순 정렬되며, 상위 10개 제품 쌍만 표시됩니다. 이 분석은 제품 추천, 번들 판매 전략, 매장 레이아웃 최적화 등에 활용할 수 있습니다."
+  },
+  {
+    "difficulty": "hard",
+    "question": "리뷰 데이터를 기반으로 제품 개선 기회를 찾으세요. 평점이 3점 이하인 리뷰가 많은 제품과 그 리뷰 내용을 분석하세요.",
+    "sql": "WITH low_rated_products AS (\n    SELECT\n        p.product_id,\n        p.name AS product_name,\n        p.category_id,\n        COUNT(r.review_id) AS total_reviews,\n        COUNT(CASE WHEN r.rating <= 3 THEN r.review_id END) AS low_rating_reviews,\n        ROUND(COUNT(CASE WHEN r.rating <= 3 THEN r.review_id END) * 100.0 / COUNT(r.review_id), 2) AS low_rating_percentage\n    FROM products p\n    JOIN reviews r ON p.product_id = r.product_id\n    GROUP BY p.product_id, p.name, p.category_id\n    HAVING COUNT(r.review_id) >= 10\n    ORDER BY low_rating_percentage DESC, total_reviews DESC\n)\nSELECT\n    lrp.product_name,\n    c.name AS category_name,\n    lrp.total_reviews,\n    lrp.low_rating_reviews,\n    lrp.low_rating_percentage,\n    r.rating,\n    r.comment,\n    cu.name AS customer_name,\n    r.review_date\nFROM low_rated_products lrp\nJOIN categories c ON lrp.category_id = c.category_id\nJOIN reviews r ON lrp.product_id = r.product_id\nJOIN customers cu ON r.customer_id = cu.customer_id\nWHERE r.rating <= 3 AND lrp.low_rating_percentage >= 30\nORDER BY lrp.low_rating_percentage DESC, lrp.product_id, r.rating;",
+    "answer": "이 쿼리는 부정적인 피드백(평점 3점 이하)이 많은 제품을 식별하고, 해당 제품들의 낮은 평점 리뷰 내용을 분석합니다. 먼저 CTE를 사용하여 각 제품의 전체 리뷰 수, 낮은 평점 리뷰 수, 그리고 낮은 평점 비율을 계산합니다. 최소 10개 이상의 리뷰가 있는 제품만 고려하고, 낮은 평점 비율이 높은 순으로 정렬합니다. 그런 다음 낮은 평점 비율이 30% 이상인 제품의 낮은 평점 리뷰를 상세히 조회합니다. 각 리뷰에 대해 제품명, 카테고리, 평점, 리뷰 내용, 고객 이름, 리뷰 날짜를 함께 표시합니다. 이 분석은 제품 품질 개선, 고객 만족도 향상을 위한 인사이트를 제공합니다."
+  },
+  {
+    "difficulty": "hard",
+    "question": "고객 생애 가치(Customer Lifetime Value)를 계산하세요. 각 고객의 평균 주문 금액, 주문 빈도, 고객 지속 기간을 고려하여 계산하세요.",
+    "sql": "WITH customer_metrics AS (\n    SELECT\n        c.customer_id,\n        c.name,\n        MIN(o.order_date) AS first_order_date,\n        MAX(o.order_date) AS last_order_date,\n        DATEDIFF(MAX(o.order_date), MIN(o.order_date)) AS customer_lifespan_days,\n        COUNT(o.order_id) AS order_count,\n        SUM(o.total_amount) AS total_spent,\n        AVG(o.total_amount) AS avg_order_value\n    FROM customers c\n    JOIN orders o ON c.customer_id = o.customer_id\n    GROUP BY c.customer_id, c.name\n    HAVING COUNT(o.order_id) >= 2\n)\nSELECT\n    customer_id,\n    name,\n    first_order_date,\n    last_order_date,\n    customer_lifespan_days,\n    order_count,\n    avg_order_value,\n    total_spent,\n    -- 연간 주문 빈도 계산\n    order_count / (customer_lifespan_days / 365.0) AS annual_purchase_frequency,\n    -- 고객 생애 가치 계산 (평균 주문 가치 * 연간 주문 빈도 * 예상 고객 생애 기간(년))\n    avg_order_value * (order_count / (customer_lifespan_days / 365.0)) * 3 AS customer_lifetime_value\nFROM customer_metrics\nORDER BY customer_lifetime_value DESC;",
+    "answer": "이 쿼리는 고객 생애 가치(CLV)를 계산합니다. 고객 생애 가치는 고객이 비즈니스와 유지할 것으로 예상되는 관계 기간 동안 발생시킬 수 있는 수익의 예측입니다. CTE를 사용하여 각 고객의 첫 주문일, 마지막 주문일, 고객 유지 기간(일), 주문 수, 총 지출액, 평균 주문 가치 등 핵심 지표를 계산합니다. 최소 2회 이상 주문한 고객만 포함합니다. 그런 다음 이 지표를 바탕으로 연간 구매 빈도(연간 주문 횟수)를 계산하고, 최종적으로 고객 생애 가치를 '평균 주문 가치 × 연간 구매 빈도 × 예상 고객 생애 기간(3년으로 가정)'으로 계산합니다. 결과는 고객 생애 가치가 높은 순으로 정렬되어, 기업이 가장 가치 있는 고객을 식별하고 고객 관계 관리 전략을 수립하는 데 도움을 줍니다."
+  }
+]

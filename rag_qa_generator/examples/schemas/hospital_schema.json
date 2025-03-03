@@ -1,108 +1,179 @@
 {
-    "database_name": "Hospital",
-    "tables": [
-      {
-        "name": "patients",
-        "columns": [
-          {"name": "patient_id", "type": "INT", "primary_key": true, "not_null": true},
-          {"name": "first_name", "type": "VARCHAR(50)", "not_null": true},
-          {"name": "last_name", "type": "VARCHAR(50)", "not_null": true},
-          {"name": "date_of_birth", "type": "DATE", "not_null": true},
-          {"name": "gender", "type": "VARCHAR(10)", "not_null": true},
-          {"name": "address", "type": "VARCHAR(200)"},
-          {"name": "phone_number", "type": "VARCHAR(20)"},
-          {"name": "email", "type": "VARCHAR(100)"},
-          {"name": "insurance_id", "type": "VARCHAR(50)"},
-          {"name": "registration_date", "type": "DATE", "not_null": true}
-        ]
-      },
-      {
-        "name": "doctors",
-        "columns": [
-          {"name": "doctor_id", "type": "INT", "primary_key": true, "not_null": true},
-          {"name": "first_name", "type": "VARCHAR(50)", "not_null": true},
-          {"name": "last_name", "type": "VARCHAR(50)", "not_null": true},
-          {"name": "specialty", "type": "VARCHAR(100)", "not_null": true},
-          {"name": "department_id", "type": "INT", "not_null": true, "references": {"table": "departments", "column": "department_id"}},
-          {"name": "phone_number", "type": "VARCHAR(20)"},
-          {"name": "email", "type": "VARCHAR(100)"},
-          {"name": "hire_date", "type": "DATE", "not_null": true}
-        ]
-      },
-      {
-        "name": "departments",
-        "columns": [
-          {"name": "department_id", "type": "INT", "primary_key": true, "not_null": true},
-          {"name": "name", "type": "VARCHAR(100)", "not_null": true},
-          {"name": "location", "type": "VARCHAR(100)"},
-          {"name": "budget", "type": "DECIMAL(15,2)"},
-          {"name": "head_doctor_id", "type": "INT", "references": {"table": "doctors", "column": "doctor_id"}}
-        ]
-      },
-      {
-        "name": "appointments",
-        "columns": [
-          {"name": "appointment_id", "type": "INT", "primary_key": true, "not_null": true},
-          {"name": "patient_id", "type": "INT", "not_null": true, "references": {"table": "patients", "column": "patient_id"}},
-          {"name": "doctor_id", "type": "INT", "not_null": true, "references": {"table": "doctors", "column": "doctor_id"}},
-          {"name": "appointment_date", "type": "DATE", "not_null": true},
-          {"name": "appointment_time", "type": "TIME", "not_null": true},
-          {"name": "reason", "type": "VARCHAR(200)"},
-          {"name": "status", "type": "VARCHAR(20)", "not_null": true},
-          {"name": "notes", "type": "TEXT"}
-        ]
-      },
-      {
-        "name": "medical_records",
-        "columns": [
-          {"name": "record_id", "type": "INT", "primary_key": true, "not_null": true},
-          {"name": "patient_id", "type": "INT", "not_null": true, "references": {"table": "patients", "column": "patient_id"}},
-          {"name": "doctor_id", "type": "INT", "not_null": true, "references": {"table": "doctors", "column": "doctor_id"}},
-          {"name": "visit_date", "type": "DATE", "not_null": true},
-          {"name": "diagnosis", "type": "TEXT", "not_null": true},
-          {"name": "treatment", "type": "TEXT"},
-          {"name": "prescription", "type": "TEXT"},
-          {"name": "notes", "type": "TEXT"}
-        ]
-      },
-      {
-        "name": "medications",
-        "columns": [
-          {"name": "medication_id", "type": "INT", "primary_key": true, "not_null": true},
-          {"name": "name", "type": "VARCHAR(100)", "not_null": true},
-          {"name": "description", "type": "TEXT"},
-          {"name": "dosage", "type": "VARCHAR(50)", "not_null": true},
-          {"name": "manufacturer", "type": "VARCHAR(100)"},
-          {"name": "side_effects", "type": "TEXT"},
-          {"name": "price", "type": "DECIMAL(10,2)"}
-        ]
-      },
-      {
-        "name": "prescriptions",
-        "columns": [
-          {"name": "prescription_id", "type": "INT", "primary_key": true, "not_null": true},
-          {"name": "record_id", "type": "INT", "not_null": true, "references": {"table": "medical_records", "column": "record_id"}},
-          {"name": "medication_id", "type": "INT", "not_null": true, "references": {"table": "medications", "column": "medication_id"}},
-          {"name": "dosage", "type": "VARCHAR(50)", "not_null": true},
-          {"name": "frequency", "type": "VARCHAR(50)", "not_null": true},
-          {"name": "start_date", "type": "DATE", "not_null": true},
-          {"name": "end_date", "type": "DATE"},
-          {"name": "refills", "type": "INT", "default": "0"}
-        ]
-      },
-      {
-        "name": "billing",
-        "columns": [
-          {"name": "bill_id", "type": "INT", "primary_key": true, "not_null": true},
-          {"name": "patient_id", "type": "INT", "not_null": true, "references": {"table": "patients", "column": "patient_id"}},
-          {"name": "record_id", "type": "INT", "references": {"table": "medical_records", "column": "record_id"}},
-          {"name": "bill_date", "type": "DATE", "not_null": true},
-          {"name": "amount", "type": "DECIMAL(10,2)", "not_null": true},
-          {"name": "insurance_covered", "type": "DECIMAL(10,2)"},
-          {"name": "patient_responsibility", "type": "DECIMAL(10,2)", "not_null": true},
-          {"name": "payment_status", "type": "VARCHAR(20)", "not_null": true},
-          {"name": "payment_date", "type": "DATE"}
-        ]
-      }
-    ]
-  }
+  "tables": [
+    {
+      "name": "patients",
+      "columns": [
+        {"name": "patient_id", "type": "INT", "primary_key": true, "not_null": true},
+        {"name": "first_name", "type": "VARCHAR(50)", "not_null": true},
+        {"name": "last_name", "type": "VARCHAR(50)", "not_null": true},
+        {"name": "date_of_birth", "type": "DATE", "not_null": true},
+        {"name": "gender", "type": "VARCHAR(10)", "not_null": true},
+        {"name": "address", "type": "VARCHAR(200)"},
+        {"name": "phone_number", "type": "VARCHAR(20)"},
+        {"name": "email", "type": "VARCHAR(100)"},
+        {"name": "insurance_id", "type": "VARCHAR(50)"},
+        {"name": "registration_date", "type": "DATE", "not_null": true}
+      ]
+    },
+    {
+      "name": "doctors",
+      "columns": [
+        {"name": "doctor_id", "type": "INT", "primary_key": true, "not_null": true},
+        {"name": "first_name", "type": "VARCHAR(50)", "not_null": true},
+        {"name": "last_name", "type": "VARCHAR(50)", "not_null": true},
+        {"name": "specialty", "type": "VARCHAR(100)", "not_null": true},
+        {"name": "department_id", "type": "INT", "not_null": true},
+        {"name": "phone_number", "type": "VARCHAR(20)"},
+        {"name": "email", "type": "VARCHAR(100)"},
+        {"name": "hire_date", "type": "DATE", "not_null": true}
+      ]
+    },
+    {
+      "name": "departments",
+      "columns": [
+        {"name": "department_id", "type": "INT", "primary_key": true, "not_null": true},
+        {"name": "name", "type": "VARCHAR(100)", "not_null": true},
+        {"name": "location", "type": "VARCHAR(100)"},
+        {"name": "budget", "type": "DECIMAL(15,2)"},
+        {"name": "head_doctor_id", "type": "INT"}
+      ]
+    },
+    {
+      "name": "appointments",
+      "columns": [
+        {"name": "appointment_id", "type": "INT", "primary_key": true, "not_null": true},
+        {"name": "patient_id", "type": "INT", "not_null": true},
+        {"name": "doctor_id", "type": "INT", "not_null": true},
+        {"name": "appointment_date", "type": "DATE", "not_null": true},
+        {"name": "appointment_time", "type": "TIME", "not_null": true},
+        {"name": "reason", "type": "VARCHAR(200)"},
+        {"name": "status", "type": "VARCHAR(20)", "not_null": true},
+        {"name": "notes", "type": "TEXT"}
+      ]
+    },
+    {
+      "name": "medical_records",
+      "columns": [
+        {"name": "record_id", "type": "INT", "primary_key": true, "not_null": true},
+        {"name": "patient_id", "type": "INT", "not_null": true},
+        {"name": "doctor_id", "type": "INT", "not_null": true},
+        {"name": "visit_date", "type": "DATE", "not_null": true},
+        {"name": "diagnosis", "type": "TEXT", "not_null": true},
+        {"name": "treatment", "type": "TEXT"},
+        {"name": "prescription", "type": "TEXT"},
+        {"name": "notes", "type": "TEXT"}
+      ]
+    },
+    {
+      "name": "medications",
+      "columns": [
+        {"name": "medication_id", "type": "INT", "primary_key": true, "not_null": true},
+        {"name": "name", "type": "VARCHAR(100)", "not_null": true},
+        {"name": "description", "type": "TEXT"},
+        {"name": "dosage", "type": "VARCHAR(50)", "not_null": true},
+        {"name": "manufacturer", "type": "VARCHAR(100)"},
+        {"name": "side_effects", "type": "TEXT"},
+        {"name": "price", "type": "DECIMAL(10,2)"}
+      ]
+    },
+    {
+      "name": "prescriptions",
+      "columns": [
+        {"name": "prescription_id", "type": "INT", "primary_key": true, "not_null": true},
+        {"name": "record_id", "type": "INT", "not_null": true},
+        {"name": "medication_id", "type": "INT", "not_null": true},
+        {"name": "dosage", "type": "VARCHAR(50)", "not_null": true},
+        {"name": "frequency", "type": "VARCHAR(50)", "not_null": true},
+        {"name": "start_date", "type": "DATE", "not_null": true},
+        {"name": "end_date", "type": "DATE"},
+        {"name": "refills", "type": "INT"}
+      ]
+    },
+    {
+      "name": "billing",
+      "columns": [
+        {"name": "bill_id", "type": "INT", "primary_key": true, "not_null": true},
+        {"name": "patient_id", "type": "INT", "not_null": true},
+        {"name": "record_id", "type": "INT"},
+        {"name": "bill_date", "type": "DATE", "not_null": true},
+        {"name": "amount", "type": "DECIMAL(10,2)", "not_null": true},
+        {"name": "insurance_covered", "type": "DECIMAL(10,2)"},
+        {"name": "patient_responsibility", "type": "DECIMAL(10,2)", "not_null": true},
+        {"name": "payment_status", "type": "VARCHAR(20)", "not_null": true},
+        {"name": "payment_date", "type": "DATE"}
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "name": "doctor_department",
+      "from_table": "doctors",
+      "from_column": "department_id",
+      "to_table": "departments",
+      "to_column": "department_id"
+    },
+    {
+      "name": "department_head",
+      "from_table": "departments",
+      "from_column": "head_doctor_id",
+      "to_table": "doctors",
+      "to_column": "doctor_id"
+    },
+    {
+      "name": "appointment_patient",
+      "from_table": "appointments",
+      "from_column": "patient_id",
+      "to_table": "patients",
+      "to_column": "patient_id"
+    },
+    {
+      "name": "appointment_doctor",
+      "from_table": "appointments",
+      "from_column": "doctor_id",
+      "to_table": "doctors",
+      "to_column": "doctor_id"
+    },
+    {
+      "name": "medical_record_patient",
+      "from_table": "medical_records",
+      "from_column": "patient_id",
+      "to_table": "patients",
+      "to_column": "patient_id"
+    },
+    {
+      "name": "medical_record_doctor",
+      "from_table": "medical_records",
+      "from_column": "doctor_id",
+      "to_table": "doctors",
+      "to_column": "doctor_id"
+    },
+    {
+      "name": "prescription_record",
+      "from_table": "prescriptions",
+      "from_column": "record_id",
+      "to_table": "medical_records",
+      "to_column": "record_id"
+    },
+    {
+      "name": "prescription_medication",
+      "from_table": "prescriptions",
+      "from_column": "medication_id",
+      "to_table": "medications",
+      "to_column": "medication_id"
+    },
+    {
+      "name": "billing_patient",
+      "from_table": "billing",
+      "from_column": "patient_id",
+      "to_table": "patients",
+      "to_column": "patient_id"
+    },
+    {
+      "name": "billing_record",
+      "from_table": "billing",
+      "from_column": "record_id",
+      "to_table": "medical_records",
+      "to_column": "record_id"
+    }
+  ]
+}

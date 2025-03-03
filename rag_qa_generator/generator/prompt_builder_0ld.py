@@ -39,23 +39,18 @@ class PromptBuilder:
     ) -> Dict[str, str]:
         """SQL 유효성 검증을 위한 프롬프트 구성"""
         user_prompt = f"""다음 질문과 SQL 쿼리를 검증하세요:
-
 ## 질문
 {question}
-
 ## SQL 쿼리
 ```sql
 {sql}
 ```
-
 ## 데이터베이스 스키마
 {self.schema}
-
 이 SQL 쿼리가 다음 기준에 맞는지 검증하세요:
 1. 문법적으로 올바른가?
 2. 모든 테이블과 컬럼이 스키마에 존재하는가?
 3. 질문에 대한 답을 제공하는가?
-
 검증 결과를 다음 JSON 형식으로 반환하세요:
 ```json
 {{
@@ -76,18 +71,14 @@ class PromptBuilder:
     ) -> Dict[str, str]:
         """질문에 대한 답변 생성을 위한 프롬프트 구성"""
         user_prompt = f"""다음 질문과 SQL 쿼리를 바탕으로 답변을 작성하세요:
-
 ## 질문
 {question}
-
 ## SQL 쿼리
 ```sql
 {sql}
 ```
-
 ## 데이터베이스 스키마
 {self.schema}
-
 SQL 쿼리를 분석하고, 어떤 결과를 반환할지 설명하는 자연스러운 답변을 작성하세요."""
         return {
             "system_prompt": "당신은 SQL 전문가이며 데이터 분석가입니다. ...",
@@ -113,13 +104,10 @@ SQL 쿼리를 분석하고, 어떤 결과를 반환할지 설명하는 자연스
             difficulty.lower(), difficulty_descriptions["medium"]
         )
         return f"""다음 데이터베이스 스키마를 바탕으로 {difficulty} 난이도의 Q&A를 {count}개 생성하세요.
-
 ## 데이터베이스 스키마
 {self.schema}
-
 ## 난이도: {difficulty.upper()}
 {difficulty_desc}
-
 ## 출력 형식
 ```json
 [ {{ "difficulty": "{difficulty}", "question": "질문 내용", "sql": "SQL 쿼리", "answer": "답변 내용" }} ]

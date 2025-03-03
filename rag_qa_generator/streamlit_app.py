@@ -7,6 +7,11 @@ import time
 from typing import Dict, List, Any, Optional
 import pandas as pd
 
+from data_catalog_connectors import DatahubConnector, CollibraConnector, AuthenticationError
+from data.extended_schema_loader import ExtendedSchemaLoader
+from generator.enhanced_schema_adapter import EnhancedSchemaAdapter
+
+
 # 상위 디렉토리를 sys.path에 추가하여 모듈 임포트 가능하게 함
 parent_dir = Path(__file__).parent.absolute()
 sys.path.append(str(parent_dir))
@@ -189,8 +194,9 @@ def initialize_generator():
         return False
 
 # Q&A 생성 실행
+# generate_qa 함수 수정 (탭1에서 결과를 실시간으로 표시)
 def generate_qa(difficulty, count, parallel, max_workers, batch_size):
-    """Q&A 생성 작업 실행
+    """Q&A 생성 작업 실행 - 실시간 결과 표시
     
     Args:
         difficulty: 난이도
@@ -213,19 +219,49 @@ def generate_qa(difficulty, count, parallel, max_workers, batch_size):
         progress_bar = st.progress(0)
         status_text = st.empty()
         
+        # 실시간 결과 표시를 위한 컨테이너
+        result_container = st.empty()
+        
         status_text.text(f"{difficulty} 난이도의 Q&A {count}개 생성 중...")
         
-        # 생성 함수 호출
-        result_items = st.session_state.generator.generate_qa(
-            difficulty=difficulty,
-            count=count,
-            parallel=parallel,
-            max_workers=max_workers,
-            batch_size=batch_size
-        )
+        # 결과 저장용 리스트
+        result_items = []
         
-        progress_bar.progress(100)
-        status_text.text(f"{difficulty} 난이도의 Q&A {len(result_items)}개 생성 완료")
+        # 단일 배치 생성 (병렬 비활성화)
+        if not parallel:
+            # 생성 함수 호출
+            result_items = st.session_state.generator.generate_qa(
+                difficulty=difficulty,
+                count=count,
+                parallel=False,
+                max_workers=1,
+                batch_size=1
+            )
+            
+            # 결과 표시
+            progress_bar.progress(100)
+            status_text.text(f"{difficulty} 난이도의 Q&A {len(result_items)}개 생성 완료")
+            
+            # 실시간 결과 표시
+            if result_items:
+                display_results(result_items, result_container)
+        else:
+            # 병렬 처리는 그대로 유지
+            result_items = st.session_state.generator.generate_qa(
+                difficulty=difficulty,
+                count=count,
+                parallel=parallel,
+                max_workers=max_workers,
+                batch_size=batch_size
+            )
+            
+            # 결과 표시
+            progress_bar.progress(100)
+            status_text.text(f"{difficulty} 난이도의 Q&A {len(result_items)}개 생성 완료")
+            
+            # 생성 후 결과 표시
+            if result_items:
+                display_results(result_items, result_container)
         
         st.session_state.is_generating = False
         return result_items
@@ -234,6 +270,48 @@ def generate_qa(difficulty, count, parallel, max_workers, batch_size):
         st.error(f"Q&A 생성 중 오류 발생: {str(e)}")
         st.session_state.is_generating = False
         return []
+
+# 실시간 결과 표시를 위한 함수 추가
+def display_results(result_items, container):
+    """생성된 결과를 실시간으로 표시
+    
+    Args:
+        result_items: 표시할 결과 항목
+        container: 표시할 Streamlit 컨테이너
+    """
+    with container.container():
+        st.subheader("생성된 Q&A")
+        
+        # 응급 생성 항목 여부 확인
+        emergency_items = [item for item in result_items if item.get("is_emergency", False)]
+        if emergency_items:
+            st.warning(f"⚠️ {len(emergency_items)}개 항목이 오류로 인해 자동 생성되었습니다. 품질이 낮을 수 있습니다.")
+        
+        # 데이터프레임 구성
+        df_data = []
+        for idx, item in enumerate(result_items, start=1):
+            df_data.append({
+                "번호": idx,
+                "난이도": item.get("difficulty", ""),
+                "질문": item.get("question", ""),
+                "SQL": item.get("sql", ""),
+                "답변": item.get("answer", "")
+            })
+        
+        # 데이터프레임 표시
+        if df_data:
+            results_df = pd.DataFrame(df_data)
+            st.dataframe(results_df, use_container_width=True)
+            
+            # 첫 항목 상세 표시
+            if len(result_items) > 0:
+                with st.expander("첫 번째 항목 상세", expanded=True):
+                    item = result_items[0]
+                    st.markdown(f"**질문**: {item.get('question', '')}")
+                    st.markdown("**SQL**:")
+                    st.code(item.get("sql", ""), language="sql")
+                    st.markdown("**답변**:")
+                    st.markdown(item.get("answer", ""))
 
 # 결과 저장
 def save_results(qa_items, output_format):
@@ -292,21 +370,154 @@ def main():
     # 사이드바: 설정
     with st.sidebar:
         st.title("⚙️ 설정")
+        # 탭으로 구분하여 파일 업로드와 데이터 카탈로그 연동 구분
+        source_tab1, source_tab2 = st.tabs(["파일 업로드", "데이터 카탈로그"])
+    
+        ## 스키마 업로드
+        #st.header("데이터베이스 스키마")
+        #schema_file = st.file_uploader("스키마 파일 업로드 (JSON)", type=["json"], key="schema_uploader")
+        #if schema_file and handle_schema_upload(schema_file):
+        #    # 스키마 요약 표시
+        #    if st.session_state.schema_loader:
+        #        st.info(st.session_state.schema_loader.get_schema_summary())
         
-        # 스키마 업로드
-        st.header("데이터베이스 스키마")
-        schema_file = st.file_uploader("스키마 파일 업로드 (JSON)", type=["json"])
-        if schema_file and handle_schema_upload(schema_file):
-            # 스키마 요약 표시
-            if st.session_state.schema_loader:
-                st.info(st.session_state.schema_loader.get_schema_summary())
+        ## 초기 Q&A 업로드 (선택사항)
+        #st.header("초기 Q&A 데이터 (선택사항)")
+        #qa_file = st.file_uploader("Q&A 데이터 파일 업로드", type=["json", "csv", "xlsx"], key="qa_uploader")
+        #if qa_file:
+        #    handle_qa_upload(qa_file)
+        with source_tab1:
+        # 기존 스키마 업로드 코드
+            st.header("데이터베이스 스키마")
+            schema_file = st.file_uploader("스키마 파일 업로드 (JSON)", type=["json"], key="schema_uploader")
+            if schema_file and handle_schema_upload(schema_file):
+                # 스키마 요약 표시
+                if st.session_state.schema_loader:
+                    st.info(st.session_state.schema_loader.get_schema_summary())
+            
+            # 초기 Q&A 업로드 (선택사항)
+            st.header("초기 Q&A 데이터 (선택사항)")
+            qa_file = st.file_uploader("Q&A 데이터 파일 업로드", type=["json", "csv", "xlsx"], key="qa_uploader")
+            if qa_file:
+                handle_qa_upload(qa_file)
         
-        # 초기 Q&A 업로드 (선택사항)
-        st.header("초기 Q&A 데이터 (선택사항)")
-        qa_file = st.file_uploader("Q&A 데이터 파일 업로드", type=["json", "csv", "xlsx"])
-        if qa_file:
-            handle_qa_upload(qa_file)
-        
+        with source_tab2:
+            st.header("데이터 카탈로그 연동")
+            use_catalog = st.checkbox("데이터 카탈로그 사용", value=False, key="use_catalog")
+            
+            if use_catalog:
+                catalog_type = st.selectbox("카탈로그 유형", 
+                                        ["DataHub", "Collibra"], 
+                                        key="catalog_type")
+                
+                # DataHub 접속 정보 입력 섹션
+                if catalog_type == "DataHub":
+                    catalog_url = st.text_input("DataHub API URL", 
+                                            value="http://localhost:8080/api/gms", 
+                                            help="DataHub GMS API 엔드포인트 주소",
+                                            key="datahub_url")
+                    
+                    catalog_token = st.text_input("API 토큰", 
+                                                type="password",
+                                                help="DataHub 인증 토큰",
+                                                key="datahub_token")
+                    
+                    # 추가 설정 (선택 사항)
+                    with st.expander("고급 설정"):
+                        api_timeout = st.number_input("API 타임아웃(초)", 
+                                                    min_value=5, 
+                                                    max_value=120,
+                                                    value=30,
+                                                    key="api_timeout")
+                        
+                        cache_ttl = st.number_input("캐시 유효 기간(초)", 
+                                                min_value=60,
+                                                max_value=3600,
+                                                value=300,
+                                                key="cache_ttl")
+                    
+                    # 연결 테스트 버튼
+                    if st.button("연결 테스트", key="test_connection"):
+                        if not catalog_url or not catalog_token:
+                            st.error("API URL과 토큰을 모두 입력해주세요.")
+                        else:
+                            try:
+                                with st.spinner("DataHub 연결 테스트 중..."):
+                                    # 연결 테스트
+                                    connector = DatahubConnector(
+                                        base_url=catalog_url,
+                                        api_token=catalog_token,
+                                        timeout=api_timeout
+                                    )
+                                    
+                                    # 간단한 API 호출로 연결 테스트
+                                    datasets = connector.list_datasets(limit=1)
+                                    
+                                    # 성공 메시지
+                                    st.success(f"DataHub 연결 성공! {len(datasets)}개의 데이터셋이 있습니다.")
+                                    
+                                    # 세션 상태에 연결 정보 저장
+                                    st.session_state.catalog_connector = connector
+                                    st.session_state.connector_type = "datahub"
+                                    
+                            except AuthenticationError:
+                                st.error("인증 실패. API 토큰을 확인하세요.")
+                            except TimeoutError:
+                                st.error(f"요청 시간 초과. API URL이 올바른지 확인하거나 타임아웃 값을 늘려보세요.")
+                            except Exception as e:
+                                st.error(f"연결 오류: {str(e)}")
+                    
+                    # 연결이 성공적으로 이루어진 경우에만 데이터셋 목록 표시
+                    if "catalog_connector" in st.session_state and st.session_state.connector_type == "datahub":
+                        try:
+                            with st.spinner("데이터셋 목록 가져오는 중..."):
+                                # 데이터셋 목록 가져오기
+                                datasets = st.session_state.catalog_connector.list_datasets(limit=100)
+                                
+                                if datasets:
+                                    # 데이터셋 선택 드롭다운 생성
+                                    dataset_options = [f"{d['name']} ({d['platform']})" for d in datasets]
+                                    selected_dataset_idx = st.selectbox(
+                                        "사용할 데이터셋 선택", 
+                                        options=range(len(dataset_options)),
+                                        format_func=lambda i: dataset_options[i],
+                                        key="selected_dataset"
+                                    )
+                                    
+                                    # 선택된 데이터셋 정보
+                                    selected_dataset = datasets[selected_dataset_idx]
+                                    dataset_urn = selected_dataset["urn"]
+                                    
+                                    # 선택된 데이터셋의 스키마 로드 버튼
+                                    if st.button("스키마 로드", key="load_schema_btn"):
+                                        with st.spinner("스키마 정보 로드 중..."):
+                                            # 확장된 스키마 로더 사용
+                                            schema_loader = ExtendedSchemaLoader(
+                                                data_catalog_connector=st.session_state.catalog_connector
+                                            )
+                                            
+                                            # 데이터셋 URN 설정 및 스키마 로드
+                                            try:
+                                                schema = schema_loader.load_schema_from_catalog(dataset_urn)
+                                                
+                                                # 세션 상태에 스키마 로더 저장
+                                                st.session_state.schema_loader = schema_loader
+                                                st.session_state.dataset_urn = dataset_urn
+                                                
+                                                # 성공 메시지
+                                                st.success(f"스키마 로드 성공: {selected_dataset['name']}")
+                                                
+                                                # 스키마 요약 정보 표시
+                                                st.info(schema_loader.get_schema_summary())
+                                                
+                                            except Exception as e:
+                                                st.error(f"스키마 로드 오류: {str(e)}")
+                                else:
+                                    st.info("사용 가능한 데이터셋이 없습니다.")
+                                    
+                        except Exception as e:
+                            st.error(f"데이터셋 목록 가져오기 오류: {str(e)}")
+                    
         # 모델 설정
         st.header("LLM 모델 설정")
         
@@ -316,32 +527,33 @@ def main():
             "모델 타입",
             options=available_model_types,
             index=0 if "ollama" in available_model_types else 0,
-            help="사용할 LLM 모델 타입을 선택하세요."
+            help="사용할 LLM 모델 타입을 선택하세요.",
+            key="model_type_select"
         )
         
         # 모델별 추가 설정
         if model_type == "ollama":
-            model_name = st.text_input("모델 이름", value="llama3", help="Ollama 모델 이름 (llama3, mistral 등)")
-            api_base = st.text_input("API 기본 URL", value="http://localhost:11434/api", help="Ollama API 기본 URL")
+            model_name = st.text_input("모델 이름", value="llama2:7b", help="Ollama 모델 이름 (llama3, mistral 등)", key="ollama_model_name")
+            api_base = st.text_input("API 기본 URL", value="http://localhost:11434/api", help="Ollama API 기본 URL", key="ollama_api_base")
             api_key = None
         elif model_type == "openai":
-            model_name = st.selectbox("모델 이름", options=["gpt-4", "gpt-4-0125-preview", "gpt-3.5-turbo", "gpt-3.5-turbo-0125"])
-            api_key = st.text_input("API 키", type="password", help="OpenAI API 키")
-            api_base = st.text_input("API 기본 URL (선택사항)", help="기본 OpenAI URL이 아닌 경우 입력")
+            model_name = st.selectbox("모델 이름", options=["gpt-4", "gpt-4-0125-preview", "gpt-3.5-turbo", "gpt-3.5-turbo-0125"], key="openai_model_name")
+            api_key = st.text_input("API 키", type="password", help="OpenAI API 키", key="openai_api_key")
+            api_base = st.text_input("API 기본 URL (선택사항)", help="기본 OpenAI URL이 아닌 경우 입력", key="openai_api_base")
         elif model_type == "claude":
-            model_name = st.selectbox("모델 이름", options=["claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307"])
-            api_key = st.text_input("API 키", type="password", help="Anthropic API 키")
+            model_name = st.selectbox("모델 이름", options=["claude-3-7-sonnet-20250219","claude-3-5-haiku-20241022"], key="claude_model_name")
+            api_key = st.text_input("API 키", type="password", help="Anthropic API 키", key="claude_api_key")
             api_base = None
         elif model_type == "huggingface":
-            model_name = st.text_input("모델 이름", value="meta-llama/Meta-Llama-3-8B-Instruct", help="HuggingFace 모델 ID")
-            api_key = st.text_input("API 키", type="password", help="HuggingFace API 키")
+            model_name = st.text_input("모델 이름", value="meta-llama/Meta-Llama-3-8B-Instruct", help="HuggingFace 모델 ID", key="hf_model_name")
+            api_key = st.text_input("API 키", type="password", help="HuggingFace API 키", key="hf_api_key")
             api_base = None
         
         # 공통 설정
-        temperature = st.slider("온도", min_value=0.0, max_value=1.0, value=0.7, step=0.1, help="높을수록 다양한 응답, 낮을수록 일관된 응답")
+        temperature = st.slider("온도", min_value=0.0, max_value=1.0, value=0.7, step=0.1, help="높을수록 다양한 응답, 낮을수록 일관된 응답", key="temperature_slider")
         
         # 모델 초기화 버튼
-        if st.button("모델 초기화"):
+        if st.button("모델 초기화", key="init_model_btn"):
             if initialize_model(model_type, model_name, temperature, api_key, api_base):
                 st.success("모델이 성공적으로 초기화되었습니다.")
     
@@ -360,35 +572,40 @@ def main():
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            easy_count = st.number_input("쉬운 난이도 항목 수", min_value=0, max_value=50, value=5)
+            easy_count = st.number_input("쉬운 난이도 항목 수", min_value=0, max_value=50, value=5, key="easy_count")
         
         with col2:
-            medium_count = st.number_input("중간 난이도 항목 수", min_value=0, max_value=50, value=5)
+            medium_count = st.number_input("중간 난이도 항목 수", min_value=0, max_value=50, value=5, key="medium_count")
         
         with col3:
-            hard_count = st.number_input("어려운 난이도 항목 수", min_value=0, max_value=50, value=5)
+            hard_count = st.number_input("어려운 난이도 항목 수", min_value=0, max_value=50, value=5, key="hard_count")
         
         # 고급 설정
         with st.expander("고급 설정"):
-            parallel = st.checkbox("병렬 처리", value=True, help="병렬 처리를 사용하여 성능 향상")
+            parallel = st.checkbox("병렬 처리", value=True, help="병렬 처리를 사용하여 성능 향상", key="parallel_checkbox")
             
             col1, col2 = st.columns(2)
             with col1:
-                max_workers = st.number_input("최대 작업자 수", min_value=1, max_value=16, value=4, help="병렬 처리 시 최대 작업자 수")
+                max_workers = st.number_input("최대 작업자 수", min_value=1, max_value=16, value=4, help="병렬 처리 시 최대 작업자 수", key="max_workers")
             
             with col2:
-                batch_size = st.number_input("배치 크기", min_value=1, max_value=10, value=5, help="각 작업자가 처리할 항목 수")
+                batch_size = st.number_input("배치 크기", min_value=1, max_value=10, value=5, help="각 작업자가 처리할 항목 수", key="batch_size")
             
-            validate_sql = st.checkbox("SQL 유효성 검증", value=True, help="생성된 SQL 쿼리의 유효성 검증")
+            validate_sql = st.checkbox("SQL 유효성 검증", value=True, help="생성된 SQL 쿼리의 유효성 검증", key="validate_sql")
             
             # 설정 적용
             st.session_state.config.parallel = parallel
             st.session_state.config.max_workers = max_workers
             st.session_state.config.batch_size = batch_size
             st.session_state.config.validate_sql = validate_sql
-        
+            
+         # 생성 결과 저장 옵션
+        auto_save = st.checkbox("생성 완료 후 자동 저장", value=False, help="생성이 완료된 후 자동으로 파일 저장", key="auto_save")
+        if auto_save:
+            save_format = st.selectbox("저장 형식", options=["json", "csv", "excel"], index=0, key="auto_save_format")
+            
         # 생성 버튼
-        if st.button("Q&A 생성 시작", disabled=st.session_state.is_generating):
+        if st.button("Q&A 생성 시작", disabled=st.session_state.is_generating, key="generate_btn"):
             if not st.session_state.schema_loader:
                 st.error("데이터베이스 스키마를 먼저 업로드하세요.")
             elif not st.session_state.model:
@@ -421,6 +638,12 @@ def main():
                     
                     if all_results:
                         st.success(f"총 {len(all_results)}개의 Q&A가 생성되었습니다.")
+                        
+                        # 자동 저장 옵션이 켜져 있으면 파일로 저장
+                        if auto_save:
+                            saved_path = save_results(all_results, save_format)
+                            if saved_path:
+                                st.success(f"결과가 {saved_path}에 자동 저장되었습니다.")
                     else:
                         st.warning("생성된 Q&A가 없습니다.")
     
@@ -432,17 +655,17 @@ def main():
             st.info("아직 생성된 Q&A가 없습니다. '생성' 탭에서 Q&A를 생성하세요.")
         else:
             # 결과 출력 형식 선택
-            output_format = st.selectbox("저장 형식", options=["json", "csv", "excel"], index=0)
+            output_format = st.selectbox("저장 형식", options=["json", "csv", "excel"], index=0, key="results_format")
             
             # 저장 버튼
-            if st.button("결과 저장"):
+            if st.button("결과 저장", key="save_results_btn"):
                 saved_path = save_results(st.session_state.qa_results, output_format)
                 if saved_path:
                     st.success(f"결과가 {saved_path}에 저장되었습니다.")
             
             # 난이도별 필터
             difficulties = ["전체"] + list(set(item.get("difficulty", "medium") for item in st.session_state.qa_results))
-            selected_difficulty = st.selectbox("난이도 필터", options=difficulties, index=0)
+            selected_difficulty = st.selectbox("난이도 필터", options=difficulties, index=0, key="difficulty_filter")
             
             # 결과 테이블 (데이터프레임) 생성
             filtered_results = st.session_state.qa_results
@@ -468,7 +691,7 @@ def main():
                 
                 # 개별 항목 상세 보기
                 with st.expander("항목 상세 보기"):
-                    item_idx = st.number_input("항목 번호", min_value=1, max_value=len(filtered_results), value=1, step=1)
+                    item_idx = st.number_input("항목 번호", min_value=1, max_value=len(filtered_results), value=1, step=1, key="item_idx")
                     if 1 <= item_idx <= len(filtered_results):
                         item = filtered_results[item_idx - 1]
                         
@@ -490,7 +713,7 @@ def main():
         
         st.markdown("현재 설정을 JSON 파일로 저장하여 나중에 다시 사용할 수 있습니다.")
         
-        if st.button("현재 설정 내보내기"):
+        if st.button("현재 설정 내보내기", key="export_btn"):
             try:
                 # 설정 JSON 생성
                 config_dict = st.session_state.config.to_dict()
@@ -501,7 +724,8 @@ def main():
                     label="설정 파일 다운로드",
                     data=config_json,
                     file_name="qa_generator_config.json",
-                    mime="application/json"
+                    mime="application/json",
+                    key="download_config_btn"
                 )
                 
                 st.success("설정이 JSON으로 내보내기되었습니다.")
@@ -513,7 +737,7 @@ def main():
         st.markdown("---")
         st.subheader("설정 가져오기")
         
-        config_file = st.file_uploader("설정 파일 업로드 (JSON)", type=["json"])
+        config_file = st.file_uploader("설정 파일 업로드 (JSON)", type=["json"], key="config_uploader")
         if config_file is not None:
             try:
                 # 임시 파일로 저장
